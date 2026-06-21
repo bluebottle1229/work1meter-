@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WorkMeter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <script>tailwind.config={theme:{extend:{fontFamily:{mono:['JetBrains Mono','monospace'],sans:['Inter','sans-serif']}}}}</script>
+  <style>
+    *{box-sizing:border-box}
+    body{background:#0B0F1A;font-family:'Inter',sans-serif;color:#E2E8F0;min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,245,255,.012) 2px,rgba(0,245,255,.012) 4px);pointer-events:none;z-index:0}
+    .card{background:rgba(15,23,42,.85);border:1px solid rgba(255,255,255,.07);border-radius:16px;backdrop-filter:blur(12px);position:relative;overflow:hidden}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,245,255,.4),transparent)}
+    .neon-green{color:#00FF88;text-shadow:0 0 18px rgba(0,255,136,.6)}
+    .neon-red{color:#FF4E6A;text-shadow:0 0 18px rgba(255,78,106,.6)}
+    .neon-cyan{color:#00F5FF;text-shadow:0 0 14px rgba(0,245,255,.5)}
+    .neon-amber{color:#FFB800;text-shadow:0 0 14px rgba(255,184,0,.5)}
+    .progress-track{background:rgba(255,255,255,.06);border-radius:9999px;height:6px;overflow:hidden}
+    .progress-fill{height:100%;border-radius:9999px;background:linear-gradient(90deg,#00F5FF,#00FF88);box-shadow:0 0 10px rgba(0,245,255,.5);transition:width 1s linear}
+    .input-field{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#E2E8F0;padding:8px 12px;font-size:14px;width:100%;transition:border-color .2s,box-shadow .2s;font-family:'Inter',sans-serif}
+    .input-field:focus{outline:0;border-color:rgba(0,245,255,.5);box-shadow:0 0 0 3px rgba(0,245,255,.08)}
+    .input-field::placeholder{color:rgba(148,163,184,.4)}
+    .btn{border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid transparent;font-family:'Inter',sans-serif}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-cyan{background:linear-gradient(135deg,#00F5FF22,#00FF8822);border-color:rgba(0,245,255,.35);color:#00F5FF}
+    .btn-cyan:hover:not(:disabled){background:linear-gradient(135deg,#00F5FF44,#00FF8844);box-shadow:0 0 18px rgba(0,245,255,.2)}
+    .btn-green{background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.3);color:#00FF88}
+    .btn-green:hover:not(:disabled){background:rgba(0,255,136,.2)}
+    .btn-red{background:rgba(255,78,106,.1);border-color:rgba(255,78,106,.3);color:#FF4E6A;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;transition:all .2s;border:1px solid}
+    .btn-red:hover{background:rgba(255,78,106,.2)}
+    .btn-stop{background:rgba(255,78,106,.1);border-color:rgba(255,78,106,.3);color:#FF4E6A;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid;font-family:'Inter',sans-serif}
+    .btn-stop:hover:not(:disabled){background:rgba(255,78,106,.2)}
+    .btn-stop:disabled{opacity:.4;cursor:not-allowed}
+    .btn-counter{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#94A3B8;border-radius:6px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-weight:700;transition:all .15s;flex-shrink:0}
+    .btn-counter:hover{background:rgba(0,245,255,.1);color:#00F5FF;border-color:rgba(0,245,255,.3)}
+    .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+    .status-running .status-dot{background:#00FF88;box-shadow:0 0 8px #00FF88;animation:pulse 1s infinite}
+    .status-stopped .status-dot{background:#64748B}
+    .kpi-bar-track{background:rgba(255,255,255,.05);border-radius:9999px;height:4px;flex:1}
+    .kpi-bar-fill{height:100%;border-radius:9999px;background:linear-gradient(90deg,#00F5FF,#00FF88);transition:width .4s ease}
+    .kpi-bar-fill.complete{background:linear-gradient(90deg,#FFB800,#00FF88);box-shadow:0 0 8px rgba(0,255,136,.5)}
+    #confetti-container{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden}
+    .confetti-piece{position:absolute;opacity:0;animation:confettiFall 3s ease-out forwards}
+    @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeIn .25s ease-out}
+    .lbl{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:rgba(148,163,184,.6)}
+    .divider{border:0;border-top:1px solid rgba(255,255,255,.05);margin:16px 0}
+    ::-webkit-scrollbar{width:4px}
+    ::-webkit-scrollbar-thumb{background:rgba(0,245,255,.2);border-radius:9999px}
+    .date-nav-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#94A3B8;border-radius:8px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:all .2s}
+    .date-nav-btn:hover:not(:disabled){border-color:rgba(0,245,255,.4);color:#00F5FF}
+    .date-nav-btn:disabled{opacity:.25;cursor:not-allowed}
+    .past-banner{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.25);border-radius:10px;padding:8px 14px;font-size:12px;color:#FFB800}
+    .holiday-banner{background:rgba(255,78,106,.08);border:1px solid rgba(255,78,106,.25);border-radius:10px;padding:8px 14px;font-size:12px;color:#FF8FA3}
+    .manual-box{background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.15);border-radius:12px;padding:12px 16px}
+    .month-card{background:linear-gradient(135deg,rgba(192,132,252,.08),rgba(0,245,255,.05));border:1px solid rgba(192,132,252,.2);border-radius:16px;position:relative;overflow:hidden}
+    .month-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(192,132,252,.5),transparent)}
+    .storage-warn{background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.15);border-radius:10px;padding:10px 14px;font-size:12px;color:rgba(0,245,255,.8);line-height:1.6}
+    .auto-countdown{background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);border-radius:10px;padding:8px 14px;font-size:12px;color:#00F5FF}
+    .holiday-tag{display:inline-block;background:rgba(255,78,106,.2);color:#FF8FA3;padding:1px 8px;border-radius:4px;font-size:10px;margin-left:6px;vertical-align:middle}
+  </style>
+</head>
+<body class="relative">
+<div id="confetti-container"></div>
+
+<header class="relative z-10 px-4 pt-5 pb-2 text-center">
+  <div class="inline-flex items-center gap-2 mb-1">
+    <span class="text-2xl">⚡</span>
+    <h1 class="font-mono text-xl font-bold tracking-widest neon-cyan">WORKMETER</h1>
+  </div>
+  <p class="text-xs text-slate-500 tracking-widest uppercase">薪資計算 · KPI追蹤 · 成本精算</p>
+</header>
+
+<main class="relative z-10 max-w-5xl mx-auto px-3 pb-16 space-y-4">
+
+  <!-- 本月累積淨利 -->
+  <div class="month-card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="lbl mb-0.5">📊 本月累積淨利</div>
+        <div class="text-xs text-slate-500" id="month-range-label">-- 月</div>
+      </div>
+      <div class="text-right">
+        <div class="lbl mb-0.5">本月工作天</div>
+        <div class="font-mono text-sm text-slate-300" id="month-worked-days">0 天</div>
+      </div>
+    </div>
+    <div class="font-mono font-black text-4xl mb-3" id="month-net-display" style="color:#C084FC;text-shadow:0 0 20px rgba(192,132,252,.5)">NT$0</div>
+    <div class="grid grid-cols-3 gap-3">
+      <div class="text-center py-2 rounded-lg" style="background:rgba(0,245,255,.06)">
+        <div class="lbl">本月薪資</div>
+        <div class="font-mono text-sm neon-cyan mt-0.5" id="month-earned">NT$0</div>
+      </div>
+      <div class="text-center py-2 rounded-lg" style="background:rgba(255,78,106,.06)">
+        <div class="lbl">本月支出</div>
+        <div class="font-mono text-sm neon-red mt-0.5" id="month-expenses">-NT$0</div>
+      </div>
+      <div class="text-center py-2 rounded-lg" style="background:rgba(255,184,0,.06)">
+        <div class="lbl">KPI獎金</div>
+        <div class="font-mono text-sm neon-amber mt-0.5" id="month-bonus">+NT$0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日期導覽 -->
+  <div class="card p-4">
+    <div class="flex items-center justify-center gap-4">
+      <button class="date-nav-btn" id="btn-prev-day" onclick="changeDay(-1)">&#8249;</button>
+      <div class="text-center min-w-0">
+        <div class="font-mono text-base font-semibold" id="date-display">--</div>
+        <div class="lbl" id="date-sub">載入中</div>
+      </div>
+      <button class="date-nav-btn" id="btn-next-day" onclick="changeDay(+1)" disabled>&#8250;</button>
+    </div>
+    <div id="past-banner"    class="past-banner mt-3 hidden text-center">📅 歷史補記模式</div>
+    <div id="holiday-banner" class="holiday-banner mt-3 hidden text-center">🎉 假日加班模式 — 輸入加班時數，自動以假日時薪計算</div>
+  </div>
+
+  <!-- 當日薪資面板 -->
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div id="status-badge" class="flex items-center gap-2 status-stopped">
+        <span class="status-dot"></span>
+        <span class="lbl" id="status-text">待機中</span>
+        <span id="holiday-tag" class="holiday-tag hidden">假日</span>
+      </div>
+      <span class="font-mono text-xs text-slate-500" id="clock-display">--:--:--</span>
+    </div>
+
+    <!-- 平日：自動計時倒數 -->
+    <div id="auto-countdown-box" class="auto-countdown mb-4 hidden">
+      ⏰ 距離自動開始還有 <span id="countdown-text" class="font-mono font-bold">--:--</span>
+    </div>
+
+    <!-- 三格數字 -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+      <div class="text-center py-3 rounded-xl" style="background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.1)">
+        <div class="lbl mb-1">當日已賺取</div>
+        <div class="font-mono font-bold text-2xl neon-cyan" id="earned-display">NT$0</div>
+        <div class="lbl mt-1">每秒 <span class="text-slate-400 font-mono" id="per-second-display">NT$0.0000</span></div>
+      </div>
+      <div class="text-center py-3 rounded-xl" style="background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.15)">
+        <div class="lbl mb-1">💰 當日淨利</div>
+        <div class="font-mono font-black text-3xl neon-green" id="net-profit-display">NT$0</div>
+        <div class="lbl mt-1">薪資 + KPI − 支出</div>
+      </div>
+      <div class="text-center py-3 rounded-xl" style="background:rgba(255,78,106,.04);border:1px solid rgba(255,78,106,.1)">
+        <div class="lbl mb-1">當日支出</div>
+        <div class="font-mono font-bold text-2xl neon-red" id="expenses-total-display">NT$0</div>
+        <div class="lbl mt-1">KPI獎金 <span class="neon-amber font-mono" id="kpi-bonus-display">+NT$0</span></div>
+      </div>
+    </div>
+
+    <!-- 平日計時區 -->
+    <div id="workday-section">
+      <!-- ★ 已上班時數即時顯示，避免不知道計時器有沒有在跑 -->
+      <div class="flex items-center justify-center gap-2 mb-3 py-2 rounded-lg" style="background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.15)">
+        <span class="text-sm">⏱</span>
+        <span class="text-xs text-slate-400">已上班</span>
+        <span class="font-mono font-bold text-base neon-green" id="worked-duration-display">0小時00分</span>
+      </div>
+      <div class="mb-4">
+        <div class="flex justify-between items-center mb-1">
+          <span class="lbl">今日上班進度</span>
+          <span class="font-mono text-xs text-slate-400" id="progress-text">0.00%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-bar" style="width:0%"></div></div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-green flex-1" id="btn-start" onclick="startWork()">▶ 開始上班</button>
+        <button class="btn-stop flex-1" id="btn-stop" onclick="stopWork()" disabled>⏹ 打卡下班</button>
+      </div>
+      <p class="text-xs text-slate-600 mt-2 text-center" id="auto-start-hint"></p>
+    </div>
+
+    <!-- 假日加班區（今天是假日） -->
+    <div id="holiday-section" class="hidden">
+      <div class="manual-box">
+        <div class="lbl mb-2">✏️ 今日加班時數</div>
+        <div class="flex items-center gap-3">
+          <input class="input-field flex-1" type="number" id="holiday-hours-input" placeholder="例：4" min="0" max="24" step="0.5" oninput="saveHolidayHours()"/>
+          <span class="text-slate-400 text-sm whitespace-nowrap">小時</span>
+        </div>
+        <p class="text-xs text-slate-500 mt-2" id="holiday-rate-hint"></p>
+      </div>
+    </div>
+
+    <!-- 歷史日期補記 -->
+    <div id="manual-section" class="hidden">
+      <div class="manual-box">
+        <div class="lbl mb-2">✏️ 補記工時</div>
+        <div class="flex items-center gap-3">
+          <input class="input-field flex-1" type="number" id="manual-hours-input" placeholder="工作時數（例：8）" min="0" max="24" step="0.5" oninput="saveManualHours()"/>
+          <span class="text-slate-400 text-sm whitespace-nowrap">小時</span>
+        </div>
+        <p class="text-xs text-slate-500 mt-2" id="manual-rate-hint"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 薪資設定 + 費用 -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <h2 class="font-mono text-sm font-semibold neon-cyan mb-4 tracking-wider">⚙ 薪資設定</h2>
+      <div class="space-y-3">
+        <div>
+          <label class="lbl block mb-1">薪資類型</label>
+          <div class="flex gap-2">
+            <button id="type-monthly" class="btn btn-cyan flex-1 text-xs" onclick="setSalaryType('monthly')">月薪</button>
+            <button id="type-hourly"  class="flex-1 text-xs rounded-lg border border-white/10 text-slate-500 hover:border-white/20 transition-colors" onclick="setSalaryType('hourly')">時薪</button>
+          </div>
+        </div>
+        <div>
+          <label class="lbl block mb-1" id="salary-label">月薪（NT$）</label>
+          <input class="input-field" type="number" id="salary-input" placeholder="例：40000" oninput="saveSettings()"/>
+        </div>
+        <div>
+          <label class="lbl block mb-1">每日工時（h）</label>
+          <input class="input-field" type="number" id="work-hours-input" placeholder="8" oninput="saveSettings()"/>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="lbl block mb-1">上班時間</label><input class="input-field" type="time" id="start-time-input" value="09:00" oninput="saveSettings()"/></div>
+          <div><label class="lbl block mb-1">下班時間</label><input class="input-field" type="time" id="end-time-input" value="18:00" oninput="saveSettings()"/></div>
+        </div>
+        <div>
+          <label class="lbl block mb-1">假日加班費倍數（× 平日時薪）</label>
+          <input class="input-field" type="number" id="holiday-multiplier-input" placeholder="例：1.33" step="0.01" min="1" oninput="saveSettings()"/>
+        </div>
+      </div>
+      <hr class="divider">
+      <div class="grid grid-cols-4 gap-2 text-center">
+        <div><div class="lbl">平日時薪</div><div class="font-mono text-sm text-slate-300 mt-0.5" id="info-hourly">--</div></div>
+        <div><div class="lbl">假日時薪</div><div class="font-mono text-sm text-slate-300 mt-0.5" id="info-holiday-hourly">--</div></div>
+        <div><div class="lbl">平日日薪</div><div class="font-mono text-sm text-slate-300 mt-0.5" id="info-daily">--</div></div>
+        <div><div class="lbl">本月工作日</div><div class="font-mono text-sm neon-cyan mt-0.5" id="info-workdays">--</div></div>
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <h2 class="font-mono text-sm font-semibold neon-red mb-1 tracking-wider">💸 當日支出</h2>
+      <p class="text-xs text-slate-500 mb-3" id="expense-date-hint">今天</p>
+      <div class="flex gap-2 mb-3">
+        <input class="input-field flex-1" type="text" id="expense-name-input" placeholder="費用名稱（如：午餐）" maxlength="20"/>
+        <input class="input-field w-24" type="number" id="expense-amount-input" placeholder="金額" min="0"/>
+        <button class="btn btn-cyan" style="padding:8px 12px;font-size:12px" onclick="addExpense()">+ 新增</button>
+      </div>
+      <div id="expense-list" class="space-y-1.5 max-h-52 overflow-y-auto pr-1"></div>
+      <div id="expense-empty" class="text-center text-slate-600 text-xs py-6">尚無支出紀錄</div>
+    </div>
+  </div>
+
+  <!-- 假日管理 -->
+  <div class="card p-5">
+    <h2 class="font-mono text-sm font-semibold neon-amber mb-1 tracking-wider">📅 假日管理</h2>
+    <p class="text-xs text-slate-500 mb-3">週六、週日自動視為假日。以下可新增特殊假日（補班日也可加入後再刪除）</p>
+    <div class="flex gap-2 mb-3">
+      <input class="input-field flex-1" type="date" id="holiday-date-input"/>
+      <input class="input-field flex-1" type="text" id="holiday-name-input" placeholder="名稱（如：端午節）" maxlength="20"/>
+      <button class="btn btn-cyan text-xs" style="padding:8px 12px" onclick="addHoliday()">+ 新增</button>
+    </div>
+    <div id="holiday-list" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></div>
+    <div id="holiday-empty" class="text-center text-slate-600 text-xs py-4">暫無自訂假日</div>
+    <!-- 內建假日說明 -->
+    <hr class="divider">
+    <div class="text-xs text-slate-600">
+      <span class="text-slate-500 font-medium">已內建 2025-2026 台灣國定假日：</span><br/>
+      2026：元旦(1/1)、除夕(2/16)、春節(2/17-2/23)、和平紀念日(2/28)、兒童節(4/3)、清明(4/4)、
+      勞動節(5/1)、端午(6/19)、中秋(9/25)、國慶(10/10)
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="font-mono text-sm font-semibold neon-amber tracking-wider">🎯 KPI 追蹤</h2>
+      <span class="text-xs text-slate-500" id="kpi-date-hint">今天</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-4">KPI 項目全域共享；每天的進度獨立存檔</p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      <input class="input-field col-span-2 sm:col-span-1" type="text" id="kpi-name-input" placeholder="KPI 名稱" maxlength="20"/>
+      <input class="input-field" type="number" id="kpi-target-input" placeholder="目標值" min="1"/>
+      <input class="input-field" type="number" id="kpi-bonus-input" placeholder="獎金（選填）" min="0"/>
+      <button class="btn btn-cyan col-span-2 sm:col-span-1 text-xs" onclick="addKPI()">+ 新增 KPI</button>
+    </div>
+    <div id="kpi-list" class="space-y-2"></div>
+    <div id="kpi-empty" class="text-center text-slate-600 text-xs py-6">新增你的第一個 KPI，開始追蹤目標！</div>
+  </div>
+
+</main>
+<script>
+// ═══════════════════════════════════════════════
+//  內建 2026 台灣國定假日
+// ═══════════════════════════════════════════════
+const BUILTIN_HOLIDAYS = new Set([
+  // 2026
+  '2026-01-01',
+  '2026-02-16','2026-02-17','2026-02-18','2026-02-19',
+  '2026-02-20','2026-02-21','2026-02-22','2026-02-23',
+  '2026-02-28',
+  '2026-04-03','2026-04-04',
+  '2026-05-01',
+  '2026-06-19', // 端午
+  '2026-09-25', // 中秋
+  '2026-10-10',
+]);
+
+// ═══════════════════════════════════════════════
+//  全域狀態
+// ═══════════════════════════════════════════════
+let timerState = 'stopped';
+let timerInterval = null;
+let workStartTimestamp = null;
+let salaryType = 'monthly';
+let viewDate = todayKey();
+let autoStartedDate = null;
+let DB = { settings:{}, kpiDefs:[], days:{}, holidays:[] };
+
+// ═══════════════════════════════════════════════
+//  日期工具
+// ═══════════════════════════════════════════════
+function todayKey(){
+  const d=new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function pad(n){ return String(n).padStart(2,'0'); }
+function isToday(){ return viewDate===todayKey(); }
+function formatDateLabel(key){
+  const [y,m,d]=key.split('-').map(Number);
+  const w=['日','一','二','三','四','五','六'][new Date(y,m-1,d).getDay()];
+  return y+'/'+pad(m)+'/'+pad(d)+'（週'+w+'）';
+}
+// 假日判斷：週末 OR 內建假日 OR 自訂假日
+function isHoliday(key){
+  const [y,m,d]=key.split('-').map(Number);
+  const dow=new Date(y,m-1,d).getDay();
+  if(dow===0||dow===6) return true;
+  if(BUILTIN_HOLIDAYS.has(key)) return true;
+  return DB.holidays.some(h=>h.date===key);
+}
+function changeDay(delta){
+  const [y,m,d]=viewDate.split('-').map(Number);
+  const dt=new Date(y,m-1,d); dt.setDate(dt.getDate()+delta);
+  const k=dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
+  if(k>todayKey()) return;
+  viewDate=k; onDateChange();
+}
+function onDateChange(){
+  updateDateNav(); updateModeUI(); renderExpenses(); renderKPIs(); renderAll();
+}
+function updateDateNav(){
+  const today=isToday(), hol=isHoliday(viewDate);
+  const lbl=document.getElementById('date-display');
+  lbl.textContent=formatDateLabel(viewDate);
+  lbl.className='font-mono text-base font-semibold '+(today?'neon-cyan':'neon-amber');
+  document.getElementById('date-sub').textContent=today?'今天':'歷史日期';
+  document.getElementById('btn-next-day').disabled=today;
+  // 橫幅：只在非今天顯示歷史，今天假日顯示假日橫幅
+  document.getElementById('past-banner').classList.toggle('hidden', today || hol);
+  document.getElementById('holiday-banner').classList.toggle('hidden', !hol || !today);
+  const hint=today?'今天':formatDateLabel(viewDate);
+  document.getElementById('expense-date-hint').textContent=hint;
+  document.getElementById('kpi-date-hint').textContent=hint;
+  document.getElementById('holiday-tag').classList.toggle('hidden',!hol);
+}
+
+// ═══════════════════════════════════════════════
+//  localStorage
+// ═══════════════════════════════════════════════
+function save(){ localStorage.setItem('wm_db',JSON.stringify(DB)); }
+function load(){
+  const raw=localStorage.getItem('wm_db');
+  if(raw) DB=JSON.parse(raw);
+  if(!DB.kpiDefs)  DB.kpiDefs=[];
+  if(!DB.days)     DB.days={};
+  if(!DB.holidays) DB.holidays=[];
+}
+function getDayData(k){
+  if(!DB.days[k]) DB.days[k]={expenses:[],kpiProgress:{},manualHours:null,holidayHours:null};
+  return DB.days[k];
+}
+
+// ═══════════════════════════════════════════════
+//  薪資設定
+// ═══════════════════════════════════════════════
+function saveSettings(){
+  DB.settings={salaryType,
+    salary:   document.getElementById('salary-input').value,
+    workHours:document.getElementById('work-hours-input').value,
+    startTime:document.getElementById('start-time-input').value,
+    endTime:  document.getElementById('end-time-input').value,
+    holidayMult:parseFloat(document.getElementById('holiday-multiplier-input').value)||1.33};
+  save(); updateSalaryInfo(); renderAll(); renderMonthSummary();
+}
+function applySettings(){
+  const d=DB.settings||{};
+  salaryType=d.salaryType||'monthly';
+  document.getElementById('salary-input').value    =d.salary   ||'';
+  document.getElementById('work-hours-input').value=d.workHours||'';
+  document.getElementById('start-time-input').value=d.startTime||'09:00';
+  document.getElementById('end-time-input').value  =d.endTime  ||'18:00';
+  document.getElementById('holiday-multiplier-input').value=d.holidayMult||1.33;
+  updateSalaryTypeUI(); updateSalaryInfo();
+}
+function setSalaryType(t){ salaryType=t; updateSalaryTypeUI(); saveSettings(); }
+function updateSalaryTypeUI(){
+  const on='btn btn-cyan flex-1 text-xs', off='flex-1 text-xs rounded-lg border border-white/10 text-slate-500 hover:border-white/20 transition-colors';
+  document.getElementById('type-monthly').className=salaryType==='monthly'?on:off;
+  document.getElementById('type-hourly').className =salaryType==='hourly' ?on:off;
+  document.getElementById('salary-label').textContent=salaryType==='monthly'?'月薪（NT$）':'時薪（NT$）';
+}
+// 計算指定年月的「實際工作天數」（排除週末與假日，自動依日曆計算）
+function getActualWorkDaysInMonth(year, month){
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let count = 0;
+  for(let day=1; day<=daysInMonth; day++){
+    const key = year+'-'+pad(month)+'-'+pad(day);
+    if(!isHoliday(key)) count++;
+  }
+  return count;
+}
+
+function getHourlyRate(){
+  const s=parseFloat(document.getElementById('salary-input').value)||0;
+  const hrs=parseFloat(document.getElementById('work-hours-input').value)||8;
+  if(s<=0) return 0;
+  if(salaryType!=='monthly') return s;
+  // ★ 改用「當月實際工作天數」自動計算（排除週末、國定假日）
+  const now=new Date();
+  const days=getActualWorkDaysInMonth(now.getFullYear(), now.getMonth()+1);
+  return days>0 ? s/days/hrs : 0;
+}
+function getHolidayHourlyRate(){
+  const mult=parseFloat(document.getElementById('holiday-multiplier-input').value)||1.33;
+  return getHourlyRate()*mult;
+}
+function getPerSecond(){ return getHourlyRate()/3600; }
+function updateSalaryInfo(){
+  const ph=getHourlyRate(), phh=getHolidayHourlyRate();
+  const hrs=parseFloat(document.getElementById('work-hours-input').value)||8;
+  const fmt=n=>n>0?'NT$'+Math.round(n):'--';
+  document.getElementById('info-hourly').textContent        =fmt(ph);
+  document.getElementById('info-holiday-hourly').textContent=fmt(phh);
+  document.getElementById('info-daily').textContent         =fmt(ph*hrs);
+  const now=new Date();
+  document.getElementById('info-workdays').textContent=getActualWorkDaysInMonth(now.getFullYear(),now.getMonth()+1)+' 天';
+}
+
+// ═══════════════════════════════════════════════
+//  假日管理
+// ═══════════════════════════════════════════════
+function addHoliday(){
+  const de=document.getElementById('holiday-date-input'), ne=document.getElementById('holiday-name-input');
+  const date=de.value, name=ne.value.trim();
+  if(!date||!name){ shakeInput(ne); return; }
+  if(!DB.holidays.some(h=>h.date===date)){
+    DB.holidays.push({id:Date.now(),date,name});
+    save(); renderHolidays();
+    de.value=''; ne.value='';
+  }
+}
+function deleteHoliday(id){
+  DB.holidays=DB.holidays.filter(h=>h.id!==id);
+  save(); renderHolidays();
+}
+function renderHolidays(){
+  const list=document.getElementById('holiday-list'), empty=document.getElementById('holiday-empty');
+  if(!DB.holidays.length){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  list.innerHTML=DB.holidays.sort((a,b)=>a.date.localeCompare(b.date)).map(h=>{
+    const [y,m,d]=h.date.split('-');
+    return '<div class="fade-in flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style="background:rgba(255,184,0,.06);border:1px solid rgba(255,184,0,.12)">'+
+      '<span class="text-sm text-slate-300 flex-1">'+escHtml(h.name)+'</span>'+
+      '<span class="font-mono text-xs text-slate-500 mr-2">'+y+'/'+m+'/'+d+'</span>'+
+      '<button class="btn btn-red" onclick="deleteHoliday('+h.id+')">✕</button></div>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  自動計時（平日）
+// ═══════════════════════════════════════════════
+function getStartMin(){
+  const v=document.getElementById('start-time-input').value||'09:00';
+  const [h,m]=v.split(':').map(Number); return h*60+m;
+}
+function getEndMin(){
+  const v=document.getElementById('end-time-input').value||'18:00';
+  const [h,m]=v.split(':').map(Number); return h*60+m;
+}
+function getNowMin(){ const n=new Date(); return n.getHours()*60+n.getMinutes(); }
+
+function checkAutoTimer(){
+  if(!isToday()||isHoliday(viewDate)) return;
+  const now=getNowMin(), start=getStartMin(), end=getEndMin(), today=todayKey();
+  const box=document.getElementById('auto-countdown-box'), hint=document.getElementById('auto-start-hint');
+  if(now<start){
+    const diff=start-now, hh=Math.floor(diff/60), mm=diff%60;
+    box.classList.remove('hidden');
+    document.getElementById('countdown-text').textContent=hh>0?hh+'小時'+pad(mm)+'分':mm+'分鐘';
+    return;
+  }
+  box.classList.add('hidden');
+  if(now>=start&&now<end){
+    if(autoStartedDate!==today&&timerState==='stopped'){
+      autoStartedDate=today; startWork();
+      hint.textContent='⚡ 已於上班時間自動開始計時';
+    } else if(timerState==='running'){
+      hint.textContent='⚡ 自動計時中，下班後自動停止';
+    }
+    return;
+  }
+  if(now>=end&&timerState==='running'){
+    stopWork(); hint.textContent='✅ 已於下班時間自動停止';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  計時器
+// ═══════════════════════════════════════════════
+function startWork(){
+  if(!isToday()||isHoliday(viewDate)) return;
+  const now=new Date(), startMin=getStartMin(), nowMin=getNowMin();
+  if(nowMin>=startMin){
+    // 從今天上班時間點開始算（不是現在開啟的時間）
+    const base=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    workStartTimestamp=base.getTime()+Math.floor(startMin/60)*3600000+(startMin%60)*60000;
+  } else {
+    workStartTimestamp=Date.now();
+  }
+  timerState='running';
+  clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{ renderAll(); renderMonthSummary(); },500);
+  updateTimerButtons(); updateStatusBadge();
+}
+function stopWork(){
+  // ★ 停止前把實際工時存入 todayWorkedHours（獨立欄位，不污染 manualHours）
+  if(workStartTimestamp && timerState==='running'){
+    const workedHours=(Date.now()-workStartTimestamp)/3600000;
+    const data=getDayData(todayKey());
+    data.todayWorkedHours=parseFloat(workedHours.toFixed(4));
+    save();
+  }
+  timerState='stopped'; clearInterval(timerInterval); workStartTimestamp=null;
+  updateTimerButtons(); updateStatusBadge(); renderAll(); renderMonthSummary();
+}
+function updateTimerButtons(){
+  const s=document.getElementById('btn-start'), e=document.getElementById('btn-stop');
+  if(timerState==='running'){ s.textContent='▶ 上班中'; s.disabled=true; e.disabled=false; }
+  else                      { s.textContent='▶ 開始上班'; s.disabled=false; e.disabled=true; }
+}
+function updateStatusBadge(){
+  document.getElementById('status-badge').className='flex items-center gap-2 status-'+(timerState==='running'?'running':'stopped');
+  document.getElementById('status-text').textContent=timerState==='running'?'上班中 ●':'待機中';
+}
+
+// ═══════════════════════════════════════════════
+//  模式切換
+// ═══════════════════════════════════════════════
+function updateModeUI(){
+  const ws=document.getElementById('workday-section');
+  const hs=document.getElementById('holiday-section');
+  const ms=document.getElementById('manual-section');
+  const hol=isHoliday(viewDate), today=isToday();
+
+  // 全部先隱藏
+  ws.classList.add('hidden'); hs.classList.add('hidden'); ms.classList.add('hidden');
+
+  if(today&&!hol){
+    // 今天平日 → 計時器
+    ws.classList.remove('hidden');
+  } else if(today&&hol){
+    // 今天假日 → 加班時數
+    hs.classList.remove('hidden');
+    const data=getDayData(viewDate);
+    document.getElementById('holiday-hours-input').value=data.holidayHours!=null?data.holidayHours:'';
+    document.getElementById('holiday-rate-hint').textContent=
+      '假日時薪：NT$'+Math.round(getHolidayHourlyRate())+' / 小時';
+  } else {
+    // 歷史日期 → 補記（不管是否假日，一律手動輸入）
+    ms.classList.remove('hidden');
+    const data=getDayData(viewDate), hol2=isHoliday(viewDate);
+    document.getElementById('manual-hours-input').value=
+      hol2?(data.holidayHours!=null?data.holidayHours:''):(data.manualHours!=null?data.manualHours:'');
+    document.getElementById('manual-rate-hint').textContent=
+      hol2?'假日，時薪：NT$'+Math.round(getHolidayHourlyRate())+' / 小時'
+          :'平日，時薪：NT$'+Math.round(getHourlyRate())+' / 小時';
+  }
+}
+function saveManualHours(){
+  const val=parseFloat(document.getElementById('manual-hours-input').value);
+  const data=getDayData(viewDate);
+  const clamped=isNaN(val)?null:Math.max(0,Math.min(24,val));
+  if(isHoliday(viewDate)) data.holidayHours=clamped;
+  else data.manualHours=clamped;
+  save(); renderAll(); renderMonthSummary();
+}
+function saveHolidayHours(){
+  const val=parseFloat(document.getElementById('holiday-hours-input').value);
+  getDayData(viewDate).holidayHours=isNaN(val)?null:Math.max(0,Math.min(24,val));
+  save(); renderAll(); renderMonthSummary();
+}
+
+// 取得當前 viewDate 的工作秒數
+function getWorkedSeconds(){
+  const data=getDayData(viewDate);
+  if(isToday()){
+    if(!isHoliday(viewDate)){
+      // 計時中：用即時秒數
+      if(timerState==='running'&&workStartTimestamp) return (Date.now()-workStartTimestamp)/1000;
+      // 已打卡下班：用 stopWork() 存入的 todayWorkedHours（獨立欄位）
+      return (data.todayWorkedHours||0)*3600;
+    } else {
+      return (data.holidayHours||0)*3600;
+    }
+  }
+  // 歷史日期：用手動補記的 manualHours（兩個欄位完全分開，不互相影響）
+  if(isHoliday(viewDate)) return (data.holidayHours||0)*3600;
+  return (data.manualHours||0)*3600;
+}
+
+// 取得任意日期的工作秒數（供月份統計用）
+function getWorkedSecondsForDate(key){
+  if(key===todayKey()) return getWorkedSeconds();
+  const data=DB.days[key]; // 不呼叫 getDayData，避免建立空資料污染 DB
+  if(!data) return 0;
+  if(isHoliday(key)) return (data.holidayHours||0)*3600;
+  // ★ 修正：兩個欄位不可相加！manualHours 是「後來手動補記/修正」的值，
+  //   一旦存在就代表使用者要用這個數字覆蓋掉當天的計時結果，優先採用它。
+  //   只有從未手動補記過，才退回使用當天打卡計時存下的 todayWorkedHours。
+  if(data.manualHours!=null) return data.manualHours*3600;
+  return (data.todayWorkedHours||0)*3600;
+}
+
+// 取得任意日期的時薪
+function getHourlyRateForDate(key){
+  if(isHoliday(key)) return getHolidayHourlyRate();
+  // 平日：用「該日期所在月份」的實際工作天數計算（與當月顯示邏輯一致）
+  const [y,m] = key.split('-').map(Number);
+  const s=parseFloat(document.getElementById('salary-input').value)||0;
+  const hrs=parseFloat(document.getElementById('work-hours-input').value)||8;
+  if(s<=0) return 0;
+  if(salaryType!=='monthly') return s;
+  const days=getActualWorkDaysInMonth(y,m);
+  return days>0 ? s/days/hrs : 0;
+}
+
+// ═══════════════════════════════════════════════
+//  核心渲染（四捨五入）
+// ═══════════════════════════════════════════════
+function renderAll(){
+  const ws=getWorkedSeconds();
+  const hr=isHoliday(viewDate)?getHolidayHourlyRate():getHourlyRate();
+  const earned=ws/3600*hr;
+  const bonus=getKPIBonusTotal(), exp=getExpensesTotal(), net=earned+bonus-exp;
+
+  document.getElementById('earned-display').textContent       ='NT$'+Math.round(earned);
+  document.getElementById('per-second-display').textContent   ='NT$'+(hr/3600).toFixed(4);
+  document.getElementById('expenses-total-display').textContent='NT$'+Math.round(exp);
+  document.getElementById('kpi-bonus-display').textContent    ='+NT$'+Math.round(bonus);
+
+  const netEl=document.getElementById('net-profit-display');
+  netEl.textContent='NT$'+Math.round(net);
+  netEl.className=net>=0?'font-mono font-black text-3xl neon-green':'font-mono font-black text-3xl neon-red';
+
+  if(isToday()&&!isHoliday(viewDate)){
+    const pct=getWorkDayProgress();
+    document.getElementById('progress-bar').style.width=pct+'%';
+    document.getElementById('progress-text').textContent=pct.toFixed(2)+'%';
+
+    // ★ 顯示已上班時數（小時+分鐘），讓使用者明確知道計時器在跑、跑了多久
+    const durEl=document.getElementById('worked-duration-display');
+    if(durEl){
+      const totalMinutes=Math.floor(ws/60);
+      const hh=Math.floor(totalMinutes/60), mm=totalMinutes%60;
+      durEl.textContent=hh+'小時'+pad(mm)+'分';
+    }
+  }
+}
+function getWorkDayProgress(){
+  const sv=document.getElementById('start-time-input').value||'09:00';
+  const ev=document.getElementById('end-time-input').value||'18:00';
+  const now=new Date(), base=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const [sh,sm]=sv.split(':').map(Number), [eh,em]=ev.split(':').map(Number);
+  const sMs=base.getTime()+sh*3600000+sm*60000, eMs=base.getTime()+eh*3600000+em*60000, nMs=now.getTime();
+  if(nMs<=sMs) return 0; if(nMs>=eMs) return 100;
+  return (nMs-sMs)/(eMs-sMs)*100;
+}
+
+// ═══════════════════════════════════════════════
+//  本月累積淨利
+//  ★ 修正：只計算「有實際工作秒數」的天，避免只有支出/KPI 的天被誤算進工作天
+// ═══════════════════════════════════════════════
+function renderMonthSummary(){
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth()+1;
+  const prefix=y+'-'+pad(m)+'-';
+  let tE=0, tX=0, tB=0, days=0;
+
+  // ★ 遍歷本月所有日曆天（不只是 DB.days 裡存在的），避免「建立 key 就算一天」的 bug
+  const daysInMonth=new Date(y,m,0).getDate();
+  for(let day=1;day<=daysInMonth;day++){
+    const key=y+'-'+pad(m)+'-'+pad(day);
+    const ws=getWorkedSecondsForDate(key);
+    // 工時 > 0 才算上班天數與薪資
+    if(ws>0){
+      days++;
+      tE += ws/3600 * getHourlyRateForDate(key);
+      const prog=(DB.days[key]||{}).kpiProgress||{};
+      for(const k of DB.kpiDefs) if(prog[k.id]&&prog[k.id].completed) tB+=k.bonus||0;
+    }
+    // ★ 支出不管工時，只要有記就算（假日也算）
+    tX += ((DB.days[key]||{}).expenses||[]).reduce((s,e)=>s+e.amount,0);
+  }
+
+  const net=tE+tB-tX;
+  const netEl=document.getElementById('month-net-display');
+  netEl.textContent='NT$'+Math.round(net);
+  netEl.style.color     =net>=0?'#C084FC':'#FF4E6A';
+  netEl.style.textShadow=net>=0?'0 0 20px rgba(192,132,252,.5)':'0 0 20px rgba(255,78,106,.5)';
+  document.getElementById('month-earned').textContent  ='NT$'+Math.round(tE);
+  document.getElementById('month-expenses').textContent='-NT$'+Math.round(tX);
+  document.getElementById('month-bonus').textContent   ='+NT$'+Math.round(tB);
+  document.getElementById('month-worked-days').textContent=days+' 天';
+  const mn=['一','二','三','四','五','六','七','八','九','十','十一','十二'];
+  document.getElementById('month-range-label').textContent=y+'年 '+mn[m-1]+'月';
+}
+
+// ═══════════════════════════════════════════════
+//  費用記帳
+// ═══════════════════════════════════════════════
+function getExpensesTotal(){ return (getDayData(viewDate).expenses||[]).reduce((s,e)=>s+e.amount,0); }
+function addExpense(){
+  const ne=document.getElementById('expense-name-input'), ae=document.getElementById('expense-amount-input');
+  const name=ne.value.trim(), amount=parseFloat(ae.value);
+  if(!name||isNaN(amount)||amount<0){ shakeInput(ae); return; }
+  getDayData(viewDate).expenses.push({id:Date.now(),name,amount});
+  save(); renderExpenses(); renderAll(); renderMonthSummary();
+  ne.value=''; ae.value=''; ne.focus();
+}
+function deleteExpense(id){
+  const data=getDayData(viewDate);
+  data.expenses=(data.expenses||[]).filter(e=>e.id!==id);
+  save(); renderExpenses(); renderAll(); renderMonthSummary();
+}
+function renderExpenses(){
+  const items=getDayData(viewDate).expenses||[];
+  const list=document.getElementById('expense-list'), empty=document.getElementById('expense-empty');
+  if(!items.length){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  list.innerHTML=items.map(e=>
+    '<div class="fade-in flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style="background:rgba(255,78,106,.06);border:1px solid rgba(255,78,106,.12)">'+
+    '<span class="text-sm text-slate-300 flex-1 truncate">'+escHtml(e.name)+'</span>'+
+    '<span class="font-mono text-sm neon-red whitespace-nowrap">-NT$'+Math.round(e.amount)+'</span>'+
+    '<button class="btn btn-red ml-1" onclick="deleteExpense('+e.id+')">✕</button></div>'
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  KPI
+// ═══════════════════════════════════════════════
+function getKPIBonusTotal(){
+  const prog=getDayData(viewDate).kpiProgress||{};
+  return (DB.kpiDefs||[]).filter(k=>prog[k.id]&&prog[k.id].completed).reduce((s,k)=>s+(k.bonus||0),0);
+}
+function addKPI(){
+  const ne=document.getElementById('kpi-name-input'), te=document.getElementById('kpi-target-input'), be=document.getElementById('kpi-bonus-input');
+  const name=ne.value.trim(), target=parseFloat(te.value), bonus=parseFloat(be.value)||0;
+  if(!name||isNaN(target)||target<=0){ shakeInput(te); return; }
+  DB.kpiDefs.push({id:Date.now(),name,target,bonus});
+  save(); renderKPIs(); ne.value=''; te.value=''; be.value=''; ne.focus();
+}
+function deleteKPI(id){
+  DB.kpiDefs=DB.kpiDefs.filter(k=>k.id!==id);
+  save(); renderKPIs(); renderAll(); renderMonthSummary();
+}
+function adjustProgress(id,delta){
+  const kpi=DB.kpiDefs.find(k=>k.id===id); if(!kpi) return;
+  const data=getDayData(viewDate), prog=data.kpiProgress||{};
+  const cur=prog[id]?prog[id].progress:0, wasD=prog[id]?prog[id].completed:false;
+  const nv=Math.max(0,Math.min(kpi.target,cur+delta));
+  prog[id]={progress:nv,completed:nv>=kpi.target};
+  data.kpiProgress=prog;
+  if(!wasD&&prog[id].completed) triggerConfetti();
+  save(); renderKPIs(); renderAll(); renderMonthSummary();
+}
+function setProgressValue(id,value){
+  const kpi=DB.kpiDefs.find(k=>k.id===id); if(!kpi) return;
+  const data=getDayData(viewDate), prog=data.kpiProgress||{};
+  const wasD=prog[id]?prog[id].completed:false;
+  const nv=Math.max(0,Math.min(kpi.target,parseFloat(value)||0));
+  prog[id]={progress:nv,completed:nv>=kpi.target};
+  data.kpiProgress=prog;
+  if(!wasD&&prog[id].completed) triggerConfetti();
+  save(); renderKPIs(); renderAll(); renderMonthSummary();
+}
+function renderKPIs(){
+  const list=document.getElementById('kpi-list'), empty=document.getElementById('kpi-empty');
+  if(!(DB.kpiDefs||[]).length){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  const prog=getDayData(viewDate).kpiProgress||{};
+  list.innerHTML=(DB.kpiDefs||[]).map(k=>{
+    const cur=prog[k.id]?prog[k.id].progress:0, done=prog[k.id]?prog[k.id].completed:false;
+    const pct=Math.min(100,(cur/k.target)*100);
+    return '<div class="fade-in rounded-xl p-3" style="background:'+(done?'rgba(0,255,136,.05)':'rgba(255,255,255,.03)')+';border:1px solid '+(done?'rgba(0,255,136,.2)':'rgba(255,255,255,.07)')+'">'+
+      '<div class="flex items-center justify-between gap-2 mb-2">'+
+        '<div class="flex items-center gap-2 flex-1 min-w-0">'+
+          '<span class="text-sm font-medium text-slate-200 truncate">'+escHtml(k.name)+'</span>'+
+          (done?'<span class="text-xs px-1.5 py-0.5 rounded font-semibold" style="background:rgba(0,255,136,.15);color:#00FF88">✓ 達成</span>':'')+
+          (k.bonus>0?'<span class="neon-amber font-mono text-xs ml-1">+NT$'+k.bonus+'</span>':'')+
+        '</div>'+
+        '<button class="btn btn-red flex-shrink-0" onclick="deleteKPI('+k.id+')">✕</button>'+
+      '</div>'+
+      '<div class="flex items-center gap-3 mb-2">'+
+        '<div class="kpi-bar-track"><div class="kpi-bar-fill '+(done?'complete':'')+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
+        '<span class="font-mono text-xs text-slate-400 whitespace-nowrap">'+cur+' / '+k.target+'</span>'+
+      '</div>'+
+      '<div class="flex items-center gap-2">'+
+        '<button class="btn-counter" onclick="adjustProgress('+k.id+',-1)">−</button>'+
+        '<input class="input-field text-center font-mono text-sm" style="width:80px;padding:4px 8px" type="number" value="'+cur+'" min="0" max="'+k.target+'" onchange="setProgressValue('+k.id+',this.value)"/>'+
+        '<button class="btn-counter" onclick="adjustProgress('+k.id+',+1)">＋</button>'+
+        '<span class="text-xs text-slate-500 ml-1">'+pct.toFixed(0)+'%</span>'+
+      '</div></div>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  紙屑
+// ═══════════════════════════════════════════════
+function triggerConfetti(){
+  const c=document.getElementById('confetti-container');
+  const colors=['#00F5FF','#00FF88','#FFB800','#FF4E6A','#A78BFA'], shapes=['◆','★','●','▲','✦'];
+  for(let i=0;i<80;i++){
+    const p=document.createElement('div'); p.className='confetti-piece';
+    p.style.cssText='left:'+Math.random()*100+'%;top:-20px;color:'+colors[Math.floor(Math.random()*colors.length)]+
+      ';font-size:'+(Math.random()*12+8)+'px;animation-delay:'+Math.random()*1.5+'s;animation-duration:'+(Math.random()*2+2)+'s';
+    p.textContent=shapes[Math.floor(Math.random()*shapes.length)]; c.appendChild(p);
+  }
+  setTimeout(()=>c.innerHTML='',4000);
+}
+
+// ═══════════════════════════════════════════════
+//  工具
+// ═══════════════════════════════════════════════
+function escHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function shakeInput(el){ el.style.borderColor='rgba(255,78,106,.8)'; setTimeout(()=>el.style.borderColor='',800); }
+document.getElementById('expense-amount-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addExpense(); });
+document.getElementById('kpi-target-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addKPI(); });
+document.getElementById('holiday-name-input').addEventListener('keydown',e=>{ if(e.key==='Enter') addHoliday(); });
+
+// ═══════════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════════
+function init(){
+  load();
+  applySettings();
+  updateDateNav(); updateModeUI();
+  renderHolidays(); renderExpenses(); renderKPIs(); renderAll(); renderMonthSummary();
+
+  setInterval(()=>{
+    const n=new Date();
+    document.getElementById('clock-display').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+    checkAutoTimer();
+    if(timerState==='running'){ renderAll(); renderMonthSummary(); }
+  },1000);
+
+  checkAutoTimer();
+}
+init();
+</script>
+</body>
+</html>
