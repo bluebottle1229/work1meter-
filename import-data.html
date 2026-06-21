@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WorkMeter 資料匯入工具</title>
+<style>
+body{background:#0B0F1A;color:#E2E8F0;font-family:sans-serif;padding:16px;line-height:1.6}
+h1{color:#00FF88;font-size:18px}
+.box{background:#1a2332;border:1px solid #333;border-radius:8px;padding:14px;margin:12px 0}
+textarea{width:100%;height:200px;background:#0d1117;color:#E2E8F0;border:1px solid #333;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all}
+button{background:#00FF8822;border:1px solid #00FF88;color:#00FF88;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:10px}
+button:hover{background:#00FF8844}
+.ok{color:#00FF88;font-weight:bold}
+.err{color:#FF4E6A;font-weight:bold}
+.warn{color:#FFB800}
+</style>
+</head>
+<body>
+<h1>📥 WorkMeter 資料匯入</h1>
+<p class="warn">⚠️ 請在這個（新的 GitHub Pages）網址上開啟此工具。</p>
+<p>把從舊網頁複製的資料貼到下方，按「匯入資料」。</p>
 
+<div class="box">
+  <textarea id="input" placeholder="貼上剛剛複製的資料（一長串文字）"></textarea>
+  <button onclick="importData()">📥 匯入資料</button>
+  <div id="status" style="margin-top:10px"></div>
+</div>
+
+<script>
+function importData() {
+  const text = document.getElementById('input').value.trim();
+  const statusEl = document.getElementById('status');
+
+  if (!text) {
+    statusEl.innerHTML = '<span class="err">❌ 請先貼上資料</span>';
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    // 簡單檗查格式是否合理
+    if (typeof parsed !== 'object' || parsed === null) {
+      throw new Error('格式不正確');
+    }
+    localStorage.setItem('wm_db', JSON.stringify(parsed));
+    statusEl.innerHTML = '<span class="ok">✅ 匯入成功！現在可以回到 WorkMeter 主頁面，資料應該都回來了。</span>';
+  } catch (e) {
+    statusEl.innerHTML = '<span class="err">❌ 匯入失敗：資料格式錯誤，請確認複製的內容完整（不要漏掉開頭或結尾）。錯誤訊息: ' + e.message + '</span>';
+  }
+}
+</script>
+</body>
+</html>
