@@ -318,6 +318,16 @@ let viewDate = todayKey();
 let autoStartedDate = null;
 let DB = { settings:{}, kpiDefs:[], days:{}, holidays:[] };
 
+// ★ 將計時開始時間持久化存進 DB，分頁關閉/背景凍結也不會遺失
+function persistWorkStart(ts){
+  const data=getDayData(todayKey());
+  data.workStartTs = ts; // null 代表沒在計時
+  save();
+}
+function getPersistedWorkStart(){
+  return getDayData(todayKey()).workStartTs || null;
+}
+
 // ═══════════════════════════════════════════════
 //  日期工具
 // ═══════════════════════════════════════════════
@@ -529,19 +539,29 @@ function startWork(){
   } else {
     workStartTimestamp=Date.now();
   }
+  persistWorkStart(workStartTimestamp); // ★ 立刻存進 localStorage，不依賴分頁存活
   timerState='running';
   clearInterval(timerInterval);
   timerInterval=setInterval(()=>{ renderAll(); renderMonthSummary(); },500);
   updateTimerButtons(); updateStatusBadge();
 }
 function stopWork(){
-  // ★ 停止前把實際工時存入 todayWorkedHours（獨立欄位，不污染 manualHours）
-  if(workStartTimestamp && timerState==='running'){
-    const workedHours=(Date.now()-workStartTimestamp)/3600000;
-    const data=getDayData(todayKey());
-    data.todayWorkedHours=parseFloat(workedHours.toFixed(4));
+  // ★ 改用「持久化存的開始時間」而非記憶體變數，即使分頁中斷過也能正確算出工時
+  const persistedStart = getPersistedWorkStart();
+  const effectiveStart = persistedStart || workStartTimestamp;
+  if(effectiveStart){
+    // 下班時間不超過設定的下班時刻（避免忘記關閉導致工時暴增）
+    const endMin = getEndMin();
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const capTs = base.getTime() + Math.floor(endMin/60)*3600000 + (endMin%60)*60000;
+    const effectiveEnd = Math.min(Date.now(), capTs);
+    const workedHours = Math.max(0, (effectiveEnd - effectiveStart) / 3600000);
+    const data = getDayData(todayKey());
+    data.todayWorkedHours = parseFloat(workedHours.toFixed(4));
     save();
   }
+  persistWorkStart(null); // ★ 清除持久化的開始時間
   timerState='stopped'; clearInterval(timerInterval); workStartTimestamp=null;
   updateTimerButtons(); updateStatusBadge(); renderAll(); renderMonthSummary();
 }
@@ -607,9 +627,17 @@ function getWorkedSeconds(){
   const data=getDayData(viewDate);
   if(isToday()){
     if(!isHoliday(viewDate)){
-      // 計時中：用即時秒數
-      if(timerState==='running'&&workStartTimestamp) return (Date.now()-workStartTimestamp)/1000;
-      // 已打卡下班：用 stopWork() 存入的 todayWorkedHours（獨立欄位）
+      // ★ 優先用「持久化存的開始時間」反推工時，不論分頁是否曾被中斷/重整
+      const persistedStart = getPersistedWorkStart();
+      if(persistedStart){
+        const endMin = getEndMin();
+        const now = new Date();
+        const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const capTs = base.getTime() + Math.floor(endMin/60)*3600000 + (endMin%60)*60000;
+        const effectiveEnd = Math.min(Date.now(), capTs); // 不超過下班時間
+        return Math.max(0, (effectiveEnd - persistedStart) / 1000);
+      }
+      // 沒有持久化記錄、也沒在計時：用已存的 todayWorkedHours（已打卡下班的結果）
       return (data.todayWorkedHours||0)*3600;
     } else {
       return (data.holidayHours||0)*3600;
@@ -854,7 +882,27 @@ document.getElementById('holiday-name-input').addEventListener('keydown',e=>{ if
 function init(){
   load();
   applySettings();
+
+  // ★ 還原計時狀態：如果今天有持久化的開始時間，且還沒超過下班時間，視為仍在計時中
+  const persistedStart = getPersistedWorkStart();
+  if(persistedStart && !isHoliday(todayKey())){
+    const nowMin = getNowMin(), endMin = getEndMin();
+    if(nowMin < endMin){
+      workStartTimestamp = persistedStart;
+      timerState = 'running';
+      autoStartedDate = todayKey();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(()=>{ renderAll(); renderMonthSummary(); },500);
+    } else {
+      // 已經超過下班時間才重新打開 App → 視同自動下班，立即結算
+      workStartTimestamp = persistedStart;
+      timerState = 'running';
+      stopWork();
+    }
+  }
+
   updateDateNav(); updateModeUI();
+  updateTimerButtons(); updateStatusBadge();
   renderHolidays(); renderExpenses(); renderKPIs(); renderAll(); renderMonthSummary();
 
   setInterval(()=>{
