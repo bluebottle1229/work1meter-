@@ -624,39 +624,42 @@ function saveHolidayHours(){
 
 // 取得當前 viewDate 的工作秒數
 function getWorkedSeconds(){
-  const data=getDayData(viewDate);
-  if(isToday()){
-    if(!isHoliday(viewDate)){
-      // ★ 優先用「持久化存的開始時間」反推工時，不論分頁是否曾被中斷/重整
-      const persistedStart = getPersistedWorkStart();
-      if(persistedStart){
-        const endMin = getEndMin();
-        const now = new Date();
-        const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const capTs = base.getTime() + Math.floor(endMin/60)*3600000 + (endMin%60)*60000;
-        const effectiveEnd = Math.min(Date.now(), capTs); // 不超過下班時間
-        return Math.max(0, (effectiveEnd - persistedStart) / 1000);
-      }
-      // 沒有持久化記錄、也沒在計時：用已存的 todayWorkedHours（已打卡下班的結果）
-      return (data.todayWorkedHours||0)*3600;
-    } else {
-      return (data.holidayHours||0)*3600;
-    }
-  }
-  // 歷史日期：用手動補記的 manualHours（兩個欄位完全分開，不互相影響）
-  if(isHoliday(viewDate)) return (data.holidayHours||0)*3600;
-  return (data.manualHours||0)*3600;
+  // ★ 畫面顯示一律基於目前檢視的 viewDate，直接委派給 getWorkedSecondsForDate(viewDate)，
+  //   確保「畫面顯示」與「月份統計」永遠使用同一套邏輯，不會再因為兩套程式碼分歧而重複計算。
+  return getWorkedSecondsForDate(viewDate);
 }
 
 // 取得任意日期的工作秒數（供月份統計用）
 function getWorkedSecondsForDate(key){
-  if(key===todayKey()) return getWorkedSeconds();
-  const data=DB.days[key]; // 不呼叫 getDayData，避免建立空資料污染 DB
+  // ★ 修正核心 bug：不可呼叫 getWorkedSeconds()，因為它讀的是全域變數 viewDate，
+  //   當使用者正停留在「歷史補記畫面」時，viewDate 不等於 key（今天），
+  //   會導致迴圈跑到「今天」時，誤讀到 viewDate 那天的資料，造成重複計算。
+  //   改成：不論是不是今天，一律直接從 DB.days[key] 讀取，並對「今天且尚在計時中」做即時運算。
+  const data=DB.days[key];
+
+  if(key===todayKey()){
+    // 今天：若計時器正在跑（或有持久化的開始時間），用即時秒數；否則用已存的 todayWorkedHours/manualHours
+    if(!isHoliday(key)){
+      const persistedStart = getPersistedWorkStart();
+      if(persistedStart){
+        const endMin=getEndMin();
+        const now=new Date();
+        const base=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+        const capTs=base.getTime()+Math.floor(endMin/60)*3600000+(endMin%60)*60000;
+        const effectiveEnd=Math.min(Date.now(),capTs);
+        return Math.max(0,(effectiveEnd-persistedStart)/1000);
+      }
+      if(!data) return 0;
+      if(data.manualHours!=null) return data.manualHours*3600;
+      return (data.todayWorkedHours||0)*3600;
+    } else {
+      return data ? (data.holidayHours||0)*3600 : 0;
+    }
+  }
+
   if(!data) return 0;
   if(isHoliday(key)) return (data.holidayHours||0)*3600;
-  // ★ 修正：兩個欄位不可相加！manualHours 是「後來手動補記/修正」的值，
-  //   一旦存在就代表使用者要用這個數字覆蓋掉當天的計時結果，優先採用它。
-  //   只有從未手動補記過，才退回使用當天打卡計時存下的 todayWorkedHours。
+  // 歷史平日：manualHours 優先（代表使用者後來手動補記/修正過）
   if(data.manualHours!=null) return data.manualHours*3600;
   return (data.todayWorkedHours||0)*3600;
 }
