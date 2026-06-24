@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WorkMeter 資料檢查工具 v2</title>
+<style>
+body{background:#0B0F1A;color:#E2E8F0;font-family:monospace;padding:16px;font-size:12px;line-height:1.6}
+h1{color:#00F5FF;font-size:16px}
+.box{background:#1a2332;border:1px solid #333;border-radius:8px;padding:12px;margin:10px 0;white-space:pre-wrap;word-break:break-all}
+.warn{color:#FFB800}
+.err{color:#FF4E6A}
+.ok{color:#00FF88}
+.hl{color:#FF4E6A;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>📋 WorkMeter 資料檢查工具 v2</h1>
+<p>只讀取，不會修改任何資料。請把結果截圖給我。</p>
+<div id="output" class="box">讀取中...</div>
+
+<script>
+const raw = localStorage.getItem('wm_db');
+const out = document.getElementById('output');
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+if (!raw) {
+  out.innerHTML = '<span class="err">❌ 找不到 wm_db</span>';
+} else {
+  const db = JSON.parse(raw);
+  let html = '<span class="ok">✅ 找到 wm_db 資料</span>\n\n';
+
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth()+1;
+  const prefix = y+'-'+pad(m)+'-';
+
+  html += '=== 本月 (' + y + '-' + pad(m) + ') 所有日期完整欄位 ===\n\n';
+
+  const daysInMonth = new Date(y, m, 0).getDate();
+  let workDayCount = 0;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = y + '-' + pad(m) + '-' + pad(day);
+    const d = db.days ? db.days[key] : null;
+    if (!d) continue;
+
+    const mh = d.manualHours;
+    const twh = d.todayWorkedHours;
+    const hh = d.holidayHours;
+    const wts = d.workStartTs;
+
+    // 模擬程式判斷邏輯：是否被算作「有工作」
+    let effectiveHours = 0;
+    let usedField = '無';
+    if (mh != null) { effectiveHours = mh; usedField = 'manualHours'; }
+    else if (twh) { effectiveHours = twh; usedField = 'todayWorkedHours'; }
+
+    const counted = effectiveHours > 0;
+    if (counted) workDayCount++;
+
+    html += key + (counted ? ' <span class="hl">[計入工作天]</span>' : '') + '\n';
+    html += '  manualHours: ' + mh + ' | todayWorkedHours: ' + twh + ' | holidayHours: ' + hh + '\n';
+    html += '  workStartTs: ' + wts + (wts ? ' (' + new Date(wts).toLocaleString('zh-TW') + ')' : '') + '\n';
+    html += '  → 採用欄位: ' + usedField + ' = ' + effectiveHours + ' 小時\n\n';
+  }
+
+  html += '=== 程式計算出的「本月工作天數」應為: ' + workDayCount + ' 天 ===\n';
+
+  out.innerHTML = html;
+}
+</script>
+</body>
+</html>
